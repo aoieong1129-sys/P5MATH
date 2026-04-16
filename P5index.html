@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>旋轉大冒險</title>
+  
+  <!-- 引入 Tailwind CSS 框架 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 引入 React 與 ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- 引入 Babel 以便在瀏覽器中編譯 JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+      margin: 0;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes slideInUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    
+    .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+    .animate-zoom-in { animation: zoomIn 0.5s ease-out forwards; }
+    .animate-slide-up { animation: slideInUp 0.5s ease-out forwards; }
+    
+    /* 隱藏預設滾動條保持畫面美觀 */
+    ::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ==========================================
+    // 內建 SVG 圖示庫 (取代原本的 lucide-react)
+    // ==========================================
+    const ClockIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+    const RotateCwIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>;
+    const TrophyIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7c0 3.31 2.69 6 6 6s6-2.69 6-6V2Z"/></svg>;
+    const TargetIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>;
+    const SparklesIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>;
+    const LineChartIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>;
+    const PenToolIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>;
+    const SunIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
+    const StarIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
+    const BotIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>;
+    const EraserIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>;
+    const MousePointer2Icon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.143 1.143l-1.58 6.124a.5.5 0 0 1-.947.063z"/></svg>;
+    const WindIcon = ({size=24, className=""}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>;
+
+    // ==========================================
+    // 資料與工具函數
+    // ==========================================
+    const getRobotReward = (score) => {
+      if (score >= 100) return "太不可思議了！100 分完美通關！你擁有超棒的空間想像力，你是真正的旋轉大師，機械人為你瘋狂鼓掌！🌟💯";
+      if (score >= 80) return "表現非常優異！你已經掌握了大部分的旋轉奧秘，連擊分數拿了好多，你的努力老師都看在眼裡喔！🚀";
+      if (score >= 50) return "做得很好喔！你收集到了好多寶藏，只要繼續多練習，沒有什麼數學問題可以難倒你！💡";
+      if (score > 0) return "這是一次很棒的嘗試！不要怕答錯，每一次的挑戰都會讓你變得更聰明，老師永遠相信你！🌈";
+      return "沒關係，學習就像冒險，有時候會跌倒。我們重新整理心情再來一次，機械人永遠陪著你一起進步！💪";
+    };
+
+    const TabButton = ({ active, icon: Icon, label, onClick, color }) => (
+      <button onClick={onClick}
+        className={`flex items-center px-8 py-3 rounded-full font-bold text-lg transition-all duration-300 shadow-md ${
+          active ? `bg-white text-${color}-600 ring-4 ring-${color}-200 scale-105` : `bg-white/60 text-gray-500 hover:bg-white hover:text-${color}-500 hover:scale-105`
+        }`}>
+        <Icon size={24} className="mr-2" />
+        {label}
+      </button>
+    );
+
+    // 適量旋轉元素的清爽雲朵背景 (固定5個元素不重疊)
+    const SimpleRotatingBackground = () => (
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#e0f2fe] via-[#f0fdfa] to-[#dcfce7] opacity-90"></div>
+        <div className="absolute top-[15%] left-[10%] opacity-30 animate-spin" style={{ animationDuration: '25s' }}>
+          <SunIcon size={100} className="text-amber-400" />
+        </div>
+        <div className="absolute bottom-[20%] right-[10%] opacity-30 animate-spin" style={{ animationDuration: '20s', animationDirection: 'reverse' }}>
+          <StarIcon size={90} className="text-blue-300" />
+        </div>
+        <div className="absolute top-[10%] right-[20%] opacity-20 animate-spin" style={{ animationDuration: '30s' }}>
+          <RotateCwIcon size={80} className="text-emerald-400" />
+        </div>
+        <div className="absolute bottom-[15%] left-[20%] opacity-20 animate-spin" style={{ animationDuration: '22s' }}>
+          <WindIcon size={90} className="text-pink-300" />
+        </div>
+        <div className="absolute top-[45%] left-[45%] opacity-10 animate-spin" style={{ animationDuration: '35s', animationDirection: 'reverse' }}>
+          <SparklesIcon size={120} className="text-purple-300" />
+        </div>
+      </div>
+    );
+
+    // ==========================================
+    // 頁籤 1：探索鐘面指針的旋轉
+    // ==========================================
+    const ClockTab = () => {
+      const [angle, setAngle] = useState(0);
+      const [direction, setDirection] = useState('cw');
+      const [robotInsight, setRobotInsight] = useState("");
+      const clockRef = useRef(null);
+      const isDragging = useRef(false);
+
+      const getHourNumber = (deg) => {
+        const normalized = ((deg % 360) + 360) % 360;
+        let hour = direction === 'cw' ? normalized / 30 : 12 - (normalized / 30);
+        if (hour <= 0) hour += 12;
+        if (hour > 12) hour -= 12;
+        return Math.round(hour);
+      };
+
+      const askRobotAboutAngle = () => {
+        const insights = {
+          0: "轉了一整圈回到原點！就像你今天完成了一個完美的循環，你真的太棒了！🎠",
+          30: "轉了 30 度！這個小小的銳角，就像我們每天進步一點點，累積起來就很可觀喔！🌱",
+          60: "轉了 60 度！這也是一個銳角，就像切下了一大塊美味的蛋糕，準備好好享用！🍰",
+          90: "哇！轉了 90 度直角！就像我們抬頭挺胸站得直直的，非常有精神！繼續保持！🚶‍♂️",
+          120: "轉了 120 度鈍角！就像舒服地躺在躺椅上休息，學習也要懂得放鬆喔！🛋️",
+          150: "轉了 150 度！這個鈍角像是一把打開的漂亮摺扇，你的心胸也一樣寬廣呢！🪭",
+          180: "轉了 180 度平角！就像向後轉看到了不同的風景，換個角度思考一定有新發現！🔄",
+          210: "轉了 210 度！這是一個優角喔！你願意探索這麼大的角度，代表你擁有無限的好奇心！🌟",
+          240: "轉了 240 度！超過了大半圈，就像馬拉松跑過了一半，堅持下去就是勝利！🏃‍♂️",
+          270: "轉了 270 度！其實順時針轉 270 度，就等於逆時針轉 90 度直角喔，很神奇吧？✨",
+          300: "轉了 300 度！就像一個快要畫完的圓，你的旋轉魔法越來越熟練了！🪄",
+          330: "轉了 330 度！快要轉完一圈了！就像跑到終點前最後的衝刺，繼續加油！🏁"
+        };
+        setRobotInsight(insights[angle] || "指針每走過一個角度，就像我們人生又往前邁進了一步！你觀察得非常仔細，老師為你點讚！👍");
+      };
+
+      const handlePointerDown = (e) => { isDragging.current = true; handlePointerMove(e); };
+      const handlePointerMove = (e) => {
+        if (!isDragging.current || !clockRef.current) return;
+        const rect = clockRef.current.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        const x = clientX - centerX; const y = clientY - centerY;
+        let rad = Math.atan2(y, x);
+        let physicalDeg = (rad * 180) / Math.PI + 90;
+        if (physicalDeg < 0) physicalDeg += 360;
+        let targetAngle = direction === 'cw' ? physicalDeg : (360 - physicalDeg);
+        const snapped = Math.round(targetAngle / 30) * 30;
+        setAngle(snapped % 360);
+      };
+      const handlePointerUp = () => { isDragging.current = false; };
+      const displayAngle = direction === 'cw' ? angle : -angle;
+
+      return (
+        <div className="flex flex-col items-center justify-center p-10 bg-white/80 backdrop-blur-md rounded-[48px] shadow-2xl border border-white w-full max-w-4xl mx-auto min-h-[600px] animate-zoom-in"
+             onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}>
+          <h2 className="text-4xl font-black text-blue-600 mb-10 flex items-center">
+            <ClockIcon size={48} className="mr-4" /> 探索鐘面指針的旋轉
+          </h2>
+          <div className="flex flex-col md:flex-row items-center gap-16 w-full justify-center">
+            <div ref={clockRef} onPointerDown={handlePointerDown} className="relative w-80 h-80 rounded-full bg-[#FFF9C4] border-[12px] border-[#FFD54F] shadow-[0_20px_50px_rgba(0,0,0,0.1)] flex items-center justify-center cursor-pointer touch-none hover:scale-105 transition-transform duration-300">
+              {[...Array(12)].map((_, i) => {
+                const num = i === 0 ? 12 : i;
+                const rotateDeg = i * 30;
+                return (
+                  <div key={i} className="absolute w-full h-full p-6" style={{ transform: `rotate(${rotateDeg}deg)` }}>
+                    <div className="text-center font-black text-slate-700 text-2xl" style={{ transform: `rotate(-${rotateDeg}deg)` }}>{num}</div>
+                  </div>
+                );
+              })}
+              <div className="w-8 h-8 bg-red-500 rounded-full z-30 border-4 border-white shadow-md"></div>
+              <div className="absolute w-3 h-28 bg-gradient-to-t from-red-600 to-pink-500 rounded-full origin-bottom bottom-1/2 z-20 pointer-events-none transition-transform duration-100" style={{ transform: `rotate(${displayAngle}deg)` }}>
+                <div className="absolute -top-8 -left-2 text-red-500 bg-white rounded-full p-2 shadow-lg border border-red-100"><MousePointer2Icon size={20} /></div>
+              </div>
+            </div>
+            <div className="w-full max-w-md flex flex-col gap-6">
+              <div className="bg-white p-8 rounded-[40px] shadow-xl border border-slate-100">
+                <div className="flex gap-4 mb-8">
+                  <button onClick={() => {setDirection('cw'); setAngle(0); setRobotInsight("");}} className={`flex-1 py-4 rounded-3xl font-black text-lg transition-all ${direction === 'cw' ? 'bg-blue-600 text-white shadow-lg scale-105' : 'bg-blue-50 text-blue-400'}`}>順時針</button>
+                  <button onClick={() => {setDirection('ccw'); setAngle(0); setRobotInsight("");}} className={`flex-1 py-4 rounded-3xl font-black text-lg transition-all ${direction === 'ccw' ? 'bg-indigo-600 text-white shadow-lg scale-105' : 'bg-indigo-50 text-indigo-400'}`}>逆時針</button>
+                </div>
+                <div className="flex justify-between text-slate-800 font-black mb-6 text-2xl">
+                  <span>角度：{angle}°</span><span>指向：{getHourNumber(angle)} 點</span>
+                </div>
+                <input type="range" min="0" max="360" step="30" value={angle} onChange={(e) => {setAngle(Number(e.target.value)); setRobotInsight("");}} className="w-full h-3 bg-slate-200 rounded-full appearance-none cursor-pointer accent-blue-600" />
+                <button onClick={askRobotAboutAngle} className="mt-8 w-full py-4 bg-gradient-to-r from-teal-400 to-emerald-500 text-white rounded-3xl font-black text-lg flex items-center justify-center shadow-xl hover:brightness-110 active:scale-95 transition-all">
+                  <BotIcon size={24} className="mr-3" /> 機械人小博士開講
+                </button>
+              </div>
+              {robotInsight && (
+                <div className="bg-green-50 p-6 rounded-[30px] border border-green-200 text-green-900 shadow-sm animate-slide-up">
+                  <p className="text-sm font-bold flex items-center mb-2"><BotIcon size={16} className="mr-2 text-green-600"/> 機械人小博士：</p>
+                  <p className="leading-relaxed text-lg font-medium">{robotInsight}</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <p className="mt-12 text-slate-500 font-bold bg-white/40 px-6 py-2 rounded-full border border-white/50">✨ 提示：您可以直接按住紅色指針拖動旋轉！</p>
+        </div>
+      );
+    };
+
+    // ==========================================
+    // 頁籤 2：智能畫板
+    // ==========================================
+    const GridTab = () => {
+      const canvasRef = useRef(null);
+      const [mode, setMode] = useState('draw'); 
+      const [points, setPoints] = useState([]);
+      const [shapes, setShapes] = useState([]);
+      const [center, setCenter] = useState({ x: 400, y: 240 });
+      const [rotateAngle, setRotateAngle] = useState(30);
+      const [direction, setDirection] = useState('cw');
+      const [robotGuess, setRobotGuess] = useState("");
+      const gridSize = 40;
+
+      const draw = useCallback(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 1;
+        for (let x = 0; x <= canvas.width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+        for (let y = 0; y <= canvas.height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+        
+        shapes.forEach(shape => {
+          if (shape.pts.length === 0) return;
+          ctx.beginPath(); ctx.moveTo(shape.pts[0].x, shape.pts[0].y);
+          shape.pts.forEach(p => ctx.lineTo(p.x, p.y));
+          if (shape.isClosed) ctx.closePath();
+          ctx.strokeStyle = shape.isTrace ? '#cbd5e1' : (shape.type === 'line' ? '#64748b' : '#6366f1');
+          ctx.lineWidth = shape.isTrace ? 2 : 4;
+          if (shape.isTrace) ctx.setLineDash([8, 6]); else ctx.setLineDash([]);
+          ctx.stroke();
+          if (shape.isClosed && !shape.isTrace) { ctx.fillStyle = 'rgba(99, 102, 241, 0.08)'; ctx.fill(); }
+        });
+        ctx.setLineDash([]);
+        
+        if (points.length > 0) {
+          ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
+          points.forEach(p => ctx.lineTo(p.x, p.y));
+          ctx.strokeStyle = mode === 'line' ? '#64748b' : '#3b82f6'; ctx.lineWidth = 2; ctx.stroke();
+          points.forEach(p => { ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill(); });
+        }
+        
+        if (center) {
+          ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(center.x, center.y, 8, 0, Math.PI*2);
+          ctx.moveTo(center.x-15, center.y); ctx.lineTo(center.x+15, center.y);
+          ctx.moveTo(center.x, center.y-15); ctx.lineTo(center.x, center.y+15); ctx.stroke();
+        }
+      }, [shapes, points, center, mode]);
+
+      useEffect(() => { draw(); }, [draw]);
+
+      const handleRobotImagine = () => {
+        let guess = "";
+        const suffix = "畫得真好！👍";
+
+        if (shapes.length === 0 && points.length === 0) {
+          guess = "畫板空空的，快先畫點什麼，然後試著旋轉看看吧！🖍️";
+        } else if (shapes.length <= 1 && points.length > 0) {
+          guess = "你畫了基礎的線條！現在請點擊下方的『旋轉一周』，讓機械人看看它會變成什麼神奇的形狀！✨";
+        } else if (shapes.length === 1 && points.length === 0) {
+          guess = "這是一個很棒的基礎圖形！現在點擊下方的『旋轉一周』，看看旋轉魔法會怎麼發生！🪄";
+        } else {
+          const patternGuesses = [
+            "哇！旋轉之後變成了一朵盛開的幾何花朵！太有藝術感了！🌸",
+            "這個圖案看起來像是一個充滿魔力的神祕魔法陣！你要施展什麼魔法呢？🪄",
+            "旋轉一圈後，變成了一顆閃閃發光的超級星星，就像萬花筒一樣神奇！✨",
+            "看起來像是一個高科技的太空船齒輪！你的空間設計感真棒！⚙️",
+            "好像夜空中綻放的燦爛煙火！旋轉對稱的魅力是不是很不可思議呢？🎆",
+            "這是一個堅固的超級英雄神盾！完美對稱的形狀讓人看了好舒服！🛡️",
+            "轉完之後，變成了一顆散發著光芒的小太陽！充滿了滿滿的正能量！☀️",
+            "這簡直是一面古代的神秘銅鏡！每一個旋轉的角落都藏著數學的秘密！🪞"
+          ];
+          guess = patternGuesses[Math.floor(Math.random() * patternGuesses.length)];
+        }
+        setRobotGuess(guess);
+      };
+
+      const handleClick = (e) => {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const x = Math.round((e.clientX - rect.left) / gridSize) * gridSize;
+        const y = Math.round((e.clientY - rect.top) / gridSize) * gridSize;
+        if (mode === 'center') { setCenter({ x, y }); setMode('draw'); } 
+        else if (mode === 'draw') setPoints(prev => [...prev, { x, y }]);
+        else if (mode === 'line') {
+          const newPts = [...points, { x, y }];
+          if (newPts.length === 2) { setShapes([...shapes, { pts: newPts, isClosed: false, isTrace: false, type: 'line' }]); setPoints([]); }
+          else setPoints(newPts);
+        }
+      };
+
+      const rotateSingle = () => {
+        if (points.length < 2 && shapes.filter(s => !s.isTrace).length === 0) return;
+        const rad = (direction === 'cw' ? rotateAngle : -rotateAngle) * (Math.PI / 180);
+        const newShapes = shapes.map(s => ({ ...s, isTrace: true }));
+        let base = [...shapes.filter(s => !s.isTrace)];
+        if (points.length > 1) { base.push({ pts: points, isClosed: mode === 'draw', isTrace: false, type: mode }); setPoints([]); }
+        const rotated = base.map(s => ({ ...s, isTrace: false, pts: s.pts.map(p => {
+          const dx = p.x - center.x; const dy = p.y - center.y;
+          return { x: center.x + dx * Math.cos(rad) - dy * Math.sin(rad), y: center.y + dx * Math.sin(rad) + dy * Math.cos(rad) };
+        })}));
+        setShapes([...newShapes, ...rotated]);
+      };
+
+      const rotateFullCircle = () => {
+        if (points.length < 2 && shapes.filter(s => !s.isTrace).length === 0) return;
+        const steps = Math.max(1, Math.floor(360 / Math.abs(rotateAngle)));
+        const radStep = (direction === 'cw' ? rotateAngle : -rotateAngle) * (Math.PI / 180);
+        let newShapes = shapes.map(s => ({ ...s, isTrace: true }));
+        let base = [...shapes.filter(s => !s.isTrace)];
+        if (points.length > 1) { base.push({ pts: points, isClosed: mode === 'draw', isTrace: false, type: mode }); setPoints([]); }
+        let generated = [];
+        for(let i=1; i<=steps; i++) {
+           const currentRad = radStep * i;
+           const rotated = base.map(s => ({ ...s, isTrace: i !== steps, pts: s.pts.map(p => {
+              const dx = p.x - center.x; const dy = p.y - center.y;
+              return { x: center.x + dx * Math.cos(currentRad) - dy * Math.sin(currentRad), y: center.y + dx * Math.sin(currentRad) + dy * Math.cos(currentRad) };
+           })}));
+           generated = [...generated, ...rotated];
+        }
+        setShapes([...newShapes, ...generated]);
+      };
+
+      return (
+        <div className="bg-white/95 rounded-[30px] shadow-2xl overflow-hidden max-w-5xl mx-auto border border-blue-50 animate-fade-in">
+          <div className="p-6 bg-[#F8FAFC]">
+            <div className="flex justify-between items-start mb-6">
+              <h2 className="text-xl font-bold text-gray-700 flex items-center">✦ 智能畫板 · 旋轉可視化</h2>
+              <div className="flex items-center gap-3">
+                {robotGuess && <span className="text-sm bg-green-100 text-green-800 px-4 py-2 rounded-xl font-bold shadow-sm">{robotGuess}</span>}
+                <button onClick={handleRobotImagine} className="bg-teal-500 text-white px-6 py-3 rounded-2xl font-black flex items-center shadow-lg hover:brightness-110 active:scale-95 transition-all">
+                  <BotIcon size={18} className="mr-2"/> 機械人聯想
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-4 mb-6">
+              <div className="flex gap-2 p-1 bg-white border rounded-full shadow-sm">
+                <button onClick={() => setMode('draw')} className={`flex items-center px-4 py-2 rounded-full font-bold transition-all ${mode === 'draw' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}><PenToolIcon size={18} className="mr-2"/>多邊形</button>
+                <button onClick={() => setMode('line')} className={`flex items-center px-4 py-2 rounded-full font-bold transition-all ${mode === 'line' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}><LineChartIcon size={18} className="mr-2"/>線段</button>
+                {mode === 'draw' && (
+                  <button onClick={() => { if (points.length > 1) { setShapes([...shapes, {pts: points, isClosed: true, isTrace: false, type: 'poly'}]); setPoints([]); } }} className="flex items-center px-4 py-2 rounded-full font-bold text-indigo-600 hover:bg-indigo-50"><TargetIcon size={18} className="mr-2"/>完成形狀</button>
+                )}
+                <button onClick={() => setPoints([])} className="flex items-center px-4 py-2 rounded-full font-bold text-red-500 hover:bg-red-50">取消</button>
+              </div>
+              <button onClick={() => setMode('center')} className={`flex items-center px-6 py-2 rounded-full font-bold transition-all border shadow-sm ${mode === 'center' ? 'bg-pink-500 text-white border-pink-500' : 'bg-white text-gray-700 hover:bg-gray-50'}`}><TargetIcon size={18} className="mr-2"/>選旋轉中心</button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 bg-white p-3 rounded-2xl border shadow-sm">
+              <div className="flex items-center gap-2 border-r pr-4">
+                <RotateCwIcon size={18} className="text-gray-400" />
+                <span className="text-gray-500 font-bold">角度</span>
+                <input type="number" value={rotateAngle} onChange={e => setRotateAngle(Number(e.target.value))} className="w-16 h-8 text-center font-bold bg-blue-50 rounded-lg text-blue-600 focus:outline-none" />
+              </div>
+              <select value={direction} onChange={e => setDirection(e.target.value)} className="bg-transparent font-bold text-gray-600 focus:outline-none cursor-pointer">
+                <option value="cw">順時針</option>
+                <option value="ccw">逆時針</option>
+              </select>
+              <div className="flex gap-2">
+                <button onClick={rotateSingle} className="bg-slate-800 text-white px-6 py-2 rounded-2xl font-bold hover:bg-slate-700 transition-all shadow-md active:scale-95">單次旋轉</button>
+                <button onClick={rotateFullCircle} className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-2 rounded-2xl font-bold hover:brightness-110 shadow-md flex items-center"><SparklesIcon size={16} className="mr-2"/>旋轉一周</button>
+              </div>
+              <button onClick={() => {setShapes([]); setPoints([]); setRobotGuess("");}} className="flex items-center text-orange-500 font-bold px-4 hover:bg-orange-50 rounded-full py-2 transition-all ml-auto"><EraserIcon size={20} className="mr-2"/>清空</button>
+            </div>
+          </div>
+          <div className="p-4 bg-gray-50 flex justify-center border-t overflow-hidden">
+            <canvas ref={canvasRef} width={800} height={480} onClick={handleClick} className="bg-white rounded-xl shadow-inner border border-gray-200 cursor-crosshair max-w-full" />
+          </div>
+        </div>
+      );
+    };
+
+    // ==========================================
+    // 頁籤 3：數學礦工
+    // ==========================================
+    const MinerGameTab = () => {
+      const canvasRef = useRef(null);
+      const [score, setScore] = useState(0);
+      const [comboCount, setComboCount] = useState(0); 
+      const [timeLeft, setTimeLeft] = useState(60); 
+      const [gameState, setGameState] = useState('start');
+      const [quiz, setQuiz] = useState(null);
+      const [availableQuizzes, setAvailableQuizzes] = useState([]);
+      const [feedback, setFeedback] = useState("");
+
+      const masterQuizData = [
+        { q: "鐘面分針從 12 走到 3，旋轉角度是多少？", o: ["30°", "60°", "90°"], a: 2 },
+        { q: "繞著一個固定點旋轉，這個點叫什麼？", o: ["旋轉中心", "端點", "對稱點"], a: 0 },
+        { q: "圖形旋轉後，什麼屬性不會改變？", o: ["方向", "位置", "形狀和大小"], a: 2 },
+        { q: "逆時針旋轉 270° 等於順時針旋轉多少？", o: ["90°", "180°", "270°"], a: 0 },
+        { q: "將長方形旋轉 180° 後，它變成了什麼圖形？", o: ["正方形", "長方形", "菱形"], a: 1 },
+        { q: "時鐘秒針走一圈是旋轉了多少度？", o: ["90°", "180°", "360°"], a: 2 },
+        { q: "分針從 12 走到 6 是旋轉了多少度？", o: ["90°", "180°", "270°"], a: 1 },
+        { q: "風扇葉片的運動屬於哪一種？", o: ["平移", "旋轉", "對稱"], a: 1 },
+        { q: "旋轉 360° 後，圖形會停在哪裡？", o: ["原位", "反方向", "左邊"], a: 0 },
+        { q: "分針走 15 分鐘旋轉了多少度？", o: ["45°", "90°", "180°"], a: 1 },
+        { q: "時針從 1 點走到 2 點旋轉了多少度？", o: ["30°", "60°", "15°"], a: 0 },
+        { q: "下面哪個英文字母旋轉 180° 後還是原本的樣子？", o: ["A", "H", "M"], a: 1 },
+        { q: "旋轉的三要素是中心、方向和什麼？", o: ["角度", "長度", "重量"], a: 0 },
+        { q: "順時針旋轉 90° 的反方向是什麼？", o: ["逆時針 90°", "順時針 180°", "逆時針 180°"], a: 0 },
+        { q: "分針走 1 分鐘旋轉多少度？", o: ["1°", "5°", "6°"], a: 2 },
+      ];
+
+      const gameRef = useRef({ angle: 0, angleDir: 1, hookLength: 50, hookState: 'swinging', targetItem: null, items: [], lastTime: 0 });
+
+      const initGame = () => {
+        // 適量元素：12 寶藏 + 4 炸彈 = 16 物品 (60秒玩得剛好)
+        const valuables = [
+          { id: 1, t: 'diamond', e: '💎', v: 10, r: 18, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 2, t: 'gold', e: '💰', v: 5, r: 35, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 3, t: 'pig', e: '🐷', v: 3, r: 22, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 4, t: 'pig', e: '🐷', v: 3, r: 22, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 5, t: 'stone', e: '🪨', v: 2, r: 25, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 6, t: 'stone', e: '🪨', v: 2, r: 25, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 7, t: 'gold', e: '💰', v: 5, r: 35, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 8, t: 'pig', e: '🐷', v: 3, r: 22, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 9, t: 'stone', e: '🪨', v: 2, r: 25, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 10, t: 'stone', e: '🪨', v: 2, r: 25, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 11, t: 'gold', e: '💰', v: 5, r: 35, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+          { id: 12, t: 'diamond', e: '💎', v: 10, r: 18, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false },
+        ];
+        
+        const bombItems = [];
+        for(let i=0; i<4; i++) bombItems.push({ id: 100+i, t: 'bomb', e: '💣', v: 0, r: 25, x: Math.random() * 700 + 50, y: Math.random() * 200 + 180, caught: false });
+        
+        gameRef.current.items = [...valuables, ...bombItems];
+        gameRef.current.hookState = 'swinging'; gameRef.current.hookLength = 50; gameRef.current.targetItem = null;
+        gameRef.current.angle = 0; gameRef.current.angleDir = 1;
+        setScore(0); setTimeLeft(60); setAvailableQuizzes([...masterQuizData]); setComboCount(0);
+      };
+
+      const handleAnswer = (idx) => {
+        const isCorrect = idx === quiz.a;
+        const item = gameRef.current.targetItem;
+        
+        let newScore = score;
+        let newCombo = comboCount;
+        let feedbackText = "";
+
+        if (isCorrect) {
+          if (item.t !== 'bomb') {
+            const comboBonus = newCombo > 0 ? newCombo * 5 : 0;
+            newScore += (item.v + comboBonus); 
+            feedbackText = `太棒了！答對了！✨\n連擊獎勵加 ${comboBonus} 分！`;
+            newCombo += 1;
+          } else {
+            feedbackText = "危機解除！你真勇敢，連炸彈的問題都難不倒你！✨";
+          }
+        } else {
+          newCombo = 0; 
+          if (item.t === 'bomb') {
+            feedbackText = "哎呀，不小心碰到炸彈了！\n沒關係，你已經做得很棒了，下次我們一定能閃開它！💪";
+          } else {
+            feedbackText = "這題稍微難一點，但錯誤是學習的好幫手，下次一定能答對！💪\n(連擊重新計算囉)";
+          }
+        }
+        
+        setScore(Math.min(100, newScore));
+        setComboCount(newCombo);
+        setFeedback(feedbackText);
+        
+        setTimeout(() => {
+          setQuiz(null); setFeedback(""); setGameState('playing');
+          const remaining = gameRef.current.items.filter(it => it.id !== item.id);
+          gameRef.current.items = remaining; gameRef.current.targetItem = null; gameRef.current.hookState = 'retracting';
+          
+          const remainingValuable = remaining.filter(it => it.t !== 'bomb');
+          if (remainingValuable.length === 0) {
+            setGameState('end');
+          }
+        }, 2500); 
+      };
+
+      useEffect(() => {
+        if (gameState !== 'playing') return;
+        let frameId; const canvas = canvasRef.current; const ctx = canvas.getContext('2d');
+        const loop = (t) => {
+          const s = gameRef.current;
+          
+          ctx.fillStyle = '#87CEEB'; ctx.fillRect(0,0,800,80); 
+          ctx.fillStyle = '#4E342E'; ctx.fillRect(0,80,800,420); 
+          ctx.fillStyle = '#3E2723'; 
+          ctx.beginPath(); ctx.arc(150, 200, 60, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(650, 350, 100, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(400, 450, 80, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#81C784'; ctx.fillRect(0,75,800,10);
+          
+          if (s.hookState === 'swinging') { 
+            s.angle += s.angleDir * 0.025; 
+            if (Math.abs(s.angle) > 1.3) s.angleDir *= -1;
+          } else if (s.hookState === 'shooting') {
+            s.hookLength += 12;
+            const tx = 400 + s.hookLength * Math.sin(s.angle); const ty = 60 + s.hookLength * Math.cos(s.angle);
+            let found = false;
+            for (let it of s.items) {
+              if (!it.caught && Math.sqrt((tx-it.x)**2 + (ty-it.y)**2) < it.r + 15) {
+                it.caught = true; s.targetItem = it; setGameState('paused'); 
+                
+                let currentPool = availableQuizzes.length > 0 ? availableQuizzes : [...masterQuizData];
+                const qIdx = Math.floor(Math.random() * currentPool.length);
+                const selectedQ = currentPool[qIdx];
+                setQuiz(selectedQ);
+                setAvailableQuizzes(currentPool.filter((_, i) => i !== qIdx));
+                
+                found = true; break;
+              }
+            }
+            if (!found && (tx < 0 || tx > 800 || ty > 500)) s.hookState = 'retracting';
+          } else if (s.hookState === 'retracting') { 
+            s.hookLength -= 15; 
+            if (s.hookLength <= 50) { s.hookLength = 50; s.hookState = 'swinging'; } 
+          }
+          
+          const hookX = 400 + s.hookLength * Math.sin(s.angle); const hookY = 60 + s.hookLength * Math.cos(s.angle);
+          ctx.font = '50px sans-serif'; ctx.fillText('🧑‍🌾', 380, 60); 
+          ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(400,70); ctx.lineTo(hookX, hookY); ctx.stroke();
+          ctx.save();
+          ctx.translate(hookX, hookY); ctx.rotate(-s.angle);
+          ctx.beginPath(); ctx.arc(0, 0, 18, 0.4, Math.PI - 0.4); ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 4; ctx.stroke();
+          ctx.restore();
+          
+          s.items.forEach(it => { 
+            ctx.font = `${it.r*2}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            if(!it.caught){ 
+              ctx.fillText(it.e, it.x, it.y); 
+            } else if (it === s.targetItem) { 
+              ctx.fillText(it.e, hookX, hookY + 25); 
+            } 
+          });
+          frameId = requestAnimationFrame(loop);
+        };
+        frameId = requestAnimationFrame(loop); return () => cancelAnimationFrame(frameId);
+      }, [gameState, availableQuizzes]);
+
+      useEffect(() => {
+        if (gameState === 'playing' && timeLeft > 0) {
+          const id = setInterval(() => setTimeLeft(t => t-1), 1000);
+          return () => clearInterval(id);
+        } else if (timeLeft === 0 && gameState === 'playing') {
+          setGameState('end');
+        }
+      }, [timeLeft, gameState]);
+
+      return (
+        <div className="flex flex-col items-center bg-white/90 backdrop-blur-md rounded-[48px] shadow-2xl p-8 w-full max-w-5xl mx-auto border border-white animate-fade-in">
+          <div className="w-full flex justify-between mb-6">
+            <div className="bg-amber-100 px-8 py-3 rounded-2xl border-2 border-amber-200 text-amber-900 font-black text-2xl">
+              💰 分數: {score}
+            </div>
+            <div className="bg-red-50 px-8 py-3 rounded-2xl border-2 border-red-100 text-red-600 font-black text-2xl">⏳ 剩餘: {timeLeft}s</div>
+          </div>
+          
+          <div className="relative border-[16px] border-slate-800 rounded-[40px] overflow-hidden cursor-pointer shadow-2xl w-full max-w-3xl aspect-video" 
+               onClick={() => gameState === 'playing' && gameRef.current.hookState === 'swinging' && (gameRef.current.hookState = 'shooting')}>
+            <canvas ref={canvasRef} width={800} height={500} className="bg-[#4a342e] w-full h-full object-cover" />
+            
+            {gameState === 'start' && (
+              <div className="absolute inset-0 bg-slate-900/80 flex flex-col items-center justify-center text-white text-center backdrop-blur-sm p-6">
+                <h2 className="text-6xl font-black mb-6 text-yellow-400">數學礦工</h2>
+                <p className="text-xl font-bold mb-10 text-slate-300">抓取寶藏並回答正確的旋轉問題！<br/>連續答對還能獲得額外連擊加分喔！挑戰 100 分滿分！</p>
+                <button onClick={() => {setGameState('playing'); initGame();}} className="bg-yellow-400 text-slate-900 px-16 py-6 rounded-full text-3xl font-black shadow-xl hover:scale-105 transition-all">開始挑戰</button>
+              </div>
+            )}
+            
+            {gameState === 'paused' && quiz && (
+              <div className="absolute inset-0 bg-slate-950/90 flex items-center justify-center p-8 backdrop-blur-md">
+                {/* 絕對靜止的題目顯示區域 */}
+                <div className="bg-white p-12 rounded-[48px] max-w-lg w-full text-center border-8 border-yellow-400 shadow-2xl">
+                  {feedback ? (
+                    <div>
+                      {feedback.split('\n').map((line, i) => (
+                        <p key={i} className={`font-black ${line.includes('獎勵') || line.includes('太棒') || line.includes('成功') ? 'text-green-600 text-3xl mb-2' : 'text-orange-500 text-2xl mb-2'}`}>{line}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-2xl font-black text-slate-800 mb-10 leading-relaxed">{quiz.q}</p>
+                      <div className="grid gap-4">{quiz.o.map((opt, i) => (<button key={i} onClick={(e) => {e.stopPropagation(); handleAnswer(i);}} className="bg-slate-50 hover:bg-indigo-600 hover:text-white p-6 rounded-3xl font-black text-xl transition-all shadow-sm border border-slate-100">{opt}</button>))}</div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {gameState === 'end' && (
+              <div className="absolute inset-0 bg-indigo-950/95 flex flex-col items-center justify-center text-white text-center p-12">
+                <TrophyIcon size={80} className="text-yellow-400 mb-4" />
+                <h2 className="text-5xl font-black mb-4 text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600">挑戰結束！</h2>
+                <p className="text-6xl font-black text-yellow-400 my-4">{score} 分</p>
+                <div className="bg-white/10 p-6 rounded-[30px] max-w-2xl mb-8 border border-white/20 w-full shadow-inner">
+                  <div className="flex items-center justify-center gap-2 mb-3 text-pink-300 font-bold text-xl">
+                    <BotIcon size={24} /> 🤖 機械人老師的鼓勵悄悄話：
+                  </div>
+                  <p className="text-xl leading-relaxed italic text-indigo-100">{getRobotReward(score)}</p>
+                </div>
+                <button onClick={() => {setGameState('playing'); initGame();}} className="bg-green-500 px-12 py-5 rounded-full font-black text-3xl hover:brightness-110 shadow-xl">再來一次</button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // ==========================================
+    // 主應用程式
+    // ==========================================
+    const App = () => {
+      const [activeTab, setActiveTab] = useState('clock');
+      return (
+        <div className="min-h-screen p-8 relative flex flex-col">
+          <SimpleRotatingBackground />
+          <div className="max-w-6xl mx-auto w-full relative z-10 flex-1">
+            <header className="flex flex-col items-center mb-12">
+              <div className="bg-white/90 backdrop-blur-md px-12 py-6 rounded-full shadow-2xl border border-white flex items-center mb-12">
+                <RotateCwIcon size={48} className="text-blue-600 mr-5" />
+                <h1 className="text-6xl font-black text-blue-600 tracking-tight">旋轉大冒險</h1>
+              </div>
+              <div className="flex bg-slate-200/50 backdrop-blur-xl p-3 rounded-full gap-6 shadow-xl border border-white/50">
+                <TabButton active={activeTab === 'clock'} icon={ClockIcon} label="認識旋轉三要素" onClick={() => setActiveTab('clock')} color="blue" />
+                <TabButton active={activeTab === 'grid'} icon={SparklesIcon} label="智能畫板" onClick={() => setActiveTab('grid')} color="purple" />
+                <TabButton active={activeTab === 'game'} icon={TrophyIcon} label="數學礦工" onClick={() => setActiveTab('game')} color="yellow" />
+              </div>
+            </header>
+            <section className="transition-all duration-500">
+              {activeTab === 'clock' && <ClockTab />}
+              {activeTab === 'grid' && <GridTab />}
+              {activeTab === 'game' && <MinerGameTab />}
+            </section>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
